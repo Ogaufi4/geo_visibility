@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GEO Visibility Dashboard
 
-## Getting Started
+A Next.js prototype for measuring how visible a target URL is across generative answer engines. The dashboard combines benchmark prompt suites, provider agents, evaluation guardrails, summary metrics, and live scan results from OpenAI and Perplexity.
 
-First, run the development server:
+## Features
+
+- Live target URL scan through `/api/scan`
+- OpenAI and Perplexity provider runners
+- GEO benchmark prompt suites inspired by the GEO paper datasets
+- Evaluation agent and benchmark guardrail panels
+- Summary score, mention rate, provider score, and share-of-voice charts
+
+## Setup
+
+Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create a local environment file:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env.example .env
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Then add your API keys:
 
-## Learn More
+```bash
+OPENAI_API_KEY=your_openai_api_key
+PERPLEXITY_API_KEY=your_perplexity_api_key
+```
 
-To learn more about Next.js, take a look at the following resources:
+Run the development server:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+pnpm dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open [http://localhost:3000](http://localhost:3000).
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm dev
+pnpm build
+pnpm lint
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## How Scans Work
+
+1. Enter a target URL in the dashboard.
+2. The API route fetches extractable page context from the target.
+3. OpenAI and Perplexity evaluate the benchmark prompts against that context.
+4. Results return with score, status, summary, model, and timestamp metadata.
+
+If either provider key is missing, the scan route returns a configuration error and the dashboard keeps the seeded benchmark data visible.
+
+## Notes
+
+`.env` is intentionally ignored. Commit only `.env.example` with placeholder values.

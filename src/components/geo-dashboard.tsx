@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Bar,
   BarChart,
@@ -13,13 +13,26 @@ import {
   YAxis,
 } from "recharts";
 import {
+  benchmarkAuditAgents,
+  benchmarkPromptSuites,
   competitorShare,
-  engineScores,
+  evaluationAgents,
+  providerAgents,
   promptResults,
   recommendations,
-  summaryMetrics,
 } from "@/lib/dashboard-data";
-import type { BadgeTone, PromptStatus, RecommendationPriority } from "@/types/dashboard";
+import type {
+  AgentStatus,
+  BadgeTone,
+  BenchmarkAuditStatus,
+  BenchmarkSuiteStatus,
+  EngineScore,
+  ProviderAgentStatus,
+  PromptResult,
+  PromptStatus,
+  RecommendationPriority,
+  SummaryMetric,
+} from "@/types/dashboard";
 
 const badgeToneStyles: Record<BadgeTone, string> = {
   good: "bg-emerald-100 text-emerald-700",
@@ -39,14 +52,94 @@ const priorityStyles: Record<RecommendationPriority, string> = {
   Low: "bg-slate-100 text-slate-700",
 };
 
+const agentStatusStyles: Record<AgentStatus, string> = {
+  Ready: "bg-emerald-100 text-emerald-700",
+  Running: "bg-sky-100 text-sky-700",
+  "Needs proof": "bg-amber-100 text-amber-700",
+};
+
+const benchmarkStatusStyles: Record<BenchmarkSuiteStatus, string> = {
+  Covered: "bg-emerald-100 text-emerald-700",
+  Queued: "bg-sky-100 text-sky-700",
+  "Needs source": "bg-amber-100 text-amber-700",
+};
+
+const benchmarkAuditStatusStyles: Record<BenchmarkAuditStatus, string> = {
+  Healthy: "bg-emerald-100 text-emerald-700",
+  Watch: "bg-amber-100 text-amber-700",
+  Gap: "bg-rose-100 text-rose-700",
+};
+
+const providerStatusStyles: Record<ProviderAgentStatus, string> = {
+  Runnable: "bg-emerald-100 text-emerald-700",
+};
+
+const subscribeToClientMount = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+
+const average = (values: number[]) => {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  return Math.round(values.reduce((total, value) => total + value, 0) / values.length);
+};
+
+const scoreTone = (score: number): BadgeTone => {
+  if (score >= 80) {
+    return "good";
+  }
+
+  if (score >= 70) {
+    return "warn";
+  }
+
+  return "neutral";
+};
+
 export function GeoDashboard() {
-  const [isMounted, setIsMounted] = useState(false);
+  const isMounted = useSyncExternalStore(subscribeToClientMount, getClientSnapshot, getServerSnapshot);
   const [urlValue, setUrlValue] = useState("https://example.com");
   const [activeUrl, setActiveUrl] = useState("https://example.com");
+  const [livePromptResults, setLivePromptResults] = useState<PromptResult[]>(promptResults);
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
-  const chartData = useMemo(() => engineScores, []);
+  const chartData = useMemo<EngineScore[]>(() => {
+    const engines = Array.from(new Set(livePromptResults.map((row) => row.engine)));
+
+    return engines.map((engine) => ({
+      engine,
+      score: average(livePromptResults.filter((row) => row.engine === engine).map((row) => row.score)),
+      status: "API ready",
+    }));
+  }, [livePromptResults]);
+
+  const summaryMetrics = useMemo<SummaryMetric[]>(() => {
+    const overallGeo = average(livePromptResults.map((row) => row.score));
+    const openAiScore = chartData.find((row) => row.engine === "OpenAI")?.score ?? 0;
+    const perplexityScore = chartData.find((row) => row.engine === "Perplexity")?.score ?? 0;
+    const mentionRate = Math.round(
+      (livePromptResults.filter((row) => row.status === "Strong").length / livePromptResults.length) * 100
+    );
+    const benchmarkFit = average(benchmarkAuditAgents.map((agent) => agent.score));
+
+    return [
+      { label: "Overall GEO", value: String(overallGeo), badge: `${livePromptResults.length} prompts`, tone: scoreTone(overallGeo) },
+      { label: "OpenAI", value: String(openAiScore), badge: "API ready", tone: scoreTone(openAiScore) },
+      { label: "Perplexity", value: String(perplexityScore), badge: "API ready", tone: scoreTone(perplexityScore) },
+      { label: "Mention Rate", value: `${mentionRate}%`, badge: "Strong prompts", tone: scoreTone(mentionRate) },
+      { label: "Benchmark Fit", value: String(benchmarkFit), badge: "Audited", tone: scoreTone(benchmarkFit) },
+    ];
+  }, [chartData, livePromptResults]);
+
   const shareData = useMemo(() => competitorShare, []);
+  const benchmarkPromptCount = useMemo(
+    () => benchmarkPromptSuites.reduce((total, suite) => total + suite.prompts.length, 0),
+    []
+  );
 
   const toggleRow = (id: string) => {
     setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -60,9 +153,32 @@ export function GeoDashboard() {
     }
   }, [activeUrl]);
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  const runScan = async (nextUrl: string) => {
+    setIsScanning(true);
+    setScanError(null);
+
+    try {
+      const response = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: nextUrl }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Scan failed.");
+      }
+
+      setLivePromptResults(data.results);
+      setActiveUrl(data.targetUrl ?? nextUrl);
+    } catch (error) {
+      setScanError(error instanceof Error ? error.message : "Scan failed.");
+      setActiveUrl(nextUrl);
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
@@ -81,7 +197,7 @@ export function GeoDashboard() {
             event.preventDefault();
             const nextUrl = urlValue.trim();
             if (nextUrl) {
-              setActiveUrl(nextUrl);
+              void runScan(nextUrl);
             }
           }}
         >
@@ -95,15 +211,21 @@ export function GeoDashboard() {
           />
           <button
             type="submit"
-            className="h-10 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800"
+            disabled={isScanning}
+            className="h-10 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
           >
-            Apply
+            {isScanning ? "Scanning" : "Apply"}
           </button>
           <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 sm:inline-flex">
             {activeHost}
           </span>
         </form>
       </header>
+      {scanError ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+          {scanError}
+        </div>
+      ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {summaryMetrics.map((metric) => (
@@ -122,6 +244,190 @@ export function GeoDashboard() {
             </span>
           </article>
         ))}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+        <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="font-[family-name:var(--font-sora)] text-lg font-semibold text-slate-900">
+            Evaluation Agents
+          </h2>
+          <span className="text-sm font-medium text-slate-500">Interview criteria tracker</span>
+        </div>
+        <div className="grid gap-0 divide-y divide-slate-100 lg:grid-cols-5 lg:divide-x lg:divide-y-0">
+          {evaluationAgents.map((item) => (
+            <article key={item.criterion} className="flex min-h-80 flex-col p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{item.criterion}</p>
+                  <h3 className="mt-1 font-[family-name:var(--font-sora)] text-base font-semibold text-slate-900">
+                    {item.agent}
+                  </h3>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${agentStatusStyles[item.status]}`}>
+                  {item.status}
+                </span>
+              </div>
+
+              <div className="mt-4">
+                <div className="flex items-end justify-between">
+                  <span className="font-[family-name:var(--font-sora)] text-3xl font-semibold text-slate-900">
+                    {item.score}
+                  </span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Score</span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-slate-100">
+                  <div
+                    className="h-2 rounded-full bg-teal-700"
+                    style={{ width: `${item.score}%` }}
+                    aria-label={`${item.criterion} score ${item.score}`}
+                  />
+                </div>
+              </div>
+
+              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                {item.checks.map((check) => (
+                  <li key={check} className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-700" />
+                    <span>{check}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="mt-4 text-sm text-slate-700">{item.evidence}</p>
+              <p className="mt-auto pt-4 text-sm font-medium text-slate-900">{item.nextStep}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+        <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-[family-name:var(--font-sora)] text-lg font-semibold text-slate-900">
+              Provider Agents
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">Live benchmark runners are scoped to the API keys available today.</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+            2 runnable
+          </span>
+        </div>
+        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+          {providerAgents.map((item) => (
+            <article key={item.provider} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-[family-name:var(--font-sora)] text-base font-semibold text-slate-900">
+                  {item.provider}
+                </h3>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${providerStatusStyles[item.status]}`}>
+                  {item.status}
+                </span>
+              </div>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{item.envVar}</p>
+              <p className="mt-3 text-sm text-slate-700">{item.role}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {item.models.map((model) => (
+                  <span key={model} className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                    {model}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-4 text-sm font-medium text-slate-900">{item.nextStep}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+        <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-[family-name:var(--font-sora)] text-lg font-semibold text-slate-900">
+              GEO-bench Prompt Suites
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">Sample prompts from the GEO paper benchmark sources.</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+            {benchmarkPromptCount} prompts
+          </span>
+        </div>
+        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+          {benchmarkPromptSuites.map((suite) => (
+            <article key={suite.source} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-[family-name:var(--font-sora)] text-base font-semibold text-slate-900">
+                    {suite.source}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600">{suite.focus}</p>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${benchmarkStatusStyles[suite.status]}`}>
+                  {suite.status}
+                </span>
+              </div>
+              <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-800">
+                {suite.prompts.map((prompt) => (
+                  <li key={prompt}>{prompt}</li>
+                ))}
+              </ol>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+        <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-[family-name:var(--font-sora)] text-lg font-semibold text-slate-900">
+              Benchmark Guardrail Agents
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">Agents that challenge whether the benchmark set is the right one.</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+            {benchmarkAuditAgents.length} agents
+          </span>
+        </div>
+        <div className="grid gap-3 p-4 lg:grid-cols-5">
+          {benchmarkAuditAgents.map((item) => (
+            <article key={item.agent} className="flex min-h-96 flex-col rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-[family-name:var(--font-sora)] text-base font-semibold text-slate-900">
+                  {item.agent}
+                </h3>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${benchmarkAuditStatusStyles[item.status]}`}
+                >
+                  {item.status}
+                </span>
+              </div>
+              <div className="mt-3">
+                <div className="flex items-end justify-between">
+                  <span className="font-[family-name:var(--font-sora)] text-2xl font-semibold text-slate-900">
+                    {item.score}
+                  </span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fit</span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-white">
+                  <div
+                    className="h-2 rounded-full bg-teal-700"
+                    style={{ width: `${item.score}%` }}
+                    aria-label={`${item.agent} benchmark fit ${item.score}`}
+                  />
+                </div>
+              </div>
+              <p className="mt-3 text-sm text-slate-700">{item.remit}</p>
+              <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                {item.signals.map((signal) => (
+                  <li key={signal} className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-700" />
+                    <span>{signal}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-sm text-rose-700">{item.risk}</p>
+              <p className="mt-auto pt-4 text-sm font-medium text-slate-900">{item.nextStep}</p>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -224,7 +530,7 @@ export function GeoDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {promptResults.map((row) => {
+                {livePromptResults.map((row) => {
                   const expanded = Boolean(expandedRows[row.id]);
                   return (
                     <Fragment key={row.id}>
@@ -250,7 +556,14 @@ export function GeoDashboard() {
                       {expanded ? (
                         <tr>
                           <td colSpan={5} className="bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                            {row.summary}
+                            <span>{row.summary}</span>
+                            {row.model || row.scannedAt ? (
+                              <span className="mt-2 block text-xs font-semibold text-slate-500">
+                                {[row.model, row.scannedAt ? new Date(row.scannedAt).toLocaleString() : null]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
+                            ) : null}
                           </td>
                         </tr>
                       ) : null}
