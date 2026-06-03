@@ -1,3 +1,4 @@
+export type PromptStrategy = "discovery" | "mixed" | "direct";
 export type BrandPosition = "early" | "middle" | "late" | "absent";
 export type GeoSentiment = "positive" | "neutral" | "negative" | "absent";
 export type MentionStrength = "strong" | "medium" | "weak" | "absent";
@@ -8,6 +9,7 @@ export interface ScanInput {
   industry: string;
   targetMarket: string;
   optionalPrompts?: string;
+  promptStrategy?: PromptStrategy;
 }
 
 export interface ResponseAnalysis {

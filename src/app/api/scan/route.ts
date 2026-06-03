@@ -8,7 +8,7 @@ import {
 } from "@/lib/geo-ai";
 import { calculateGeoScore, summarizeCompetitors } from "@/lib/scoring";
 import { saveScanToSupabase } from "@/lib/supabase";
-import type { GeoScanResult, PromptScanResult, ScanInput, ScoreBreakdown } from "@/types/scan";
+import type { GeoScanResult, PromptScanResult, PromptStrategy, ScanInput, ScoreBreakdown } from "@/types/scan";
 
 const scanCache = new Map<string, GeoScanResult>();
 
@@ -19,6 +19,14 @@ const requiredFields: Array<keyof Pick<ScanInput, "brandName" | "websiteUrl" | "
   "targetMarket",
 ];
 
+const normalizePromptStrategy = (value: unknown): PromptStrategy => {
+  if (value === "direct" || value === "mixed" || value === "discovery") {
+    return value;
+  }
+
+  return "discovery";
+};
+
 const normalizeInput = (body: Partial<ScanInput>): Required<ScanInput> | null => {
   const input = {
     brandName: body.brandName?.trim() ?? "",
@@ -26,6 +34,7 @@ const normalizeInput = (body: Partial<ScanInput>): Required<ScanInput> | null =>
     industry: body.industry?.trim() ?? "",
     targetMarket: body.targetMarket?.trim() ?? "",
     optionalPrompts: body.optionalPrompts?.trim() ?? "",
+    promptStrategy: normalizePromptStrategy(body.promptStrategy),
   };
 
   if (requiredFields.some((field) => !input[field])) {
@@ -49,6 +58,7 @@ const cacheKeyFor = (input: Required<ScanInput>) =>
     industry: input.industry.toLowerCase(),
     targetMarket: input.targetMarket.toLowerCase(),
     optionalPrompts: input.optionalPrompts,
+    promptStrategy: input.promptStrategy,
   });
 
 const weakestMetrics = (scores: ScoreBreakdown) =>

@@ -6,8 +6,8 @@ This is not "SEO for AI". It is a lightweight visibility intelligence tool for g
 
 ## What It Does
 
-1. A user enters a brand name, website URL, industry, and target market.
-2. The app generates 6 to 10 consumer-style prompts with OpenAI, unless custom prompts are supplied.
+1. A user enters a brand name, website URL, industry, target market, and prompt strategy.
+2. The app generates 6 to 10 consumer-style prompts with OpenAI, unless custom prompts are supplied. Discovery mode intentionally creates prompts that do not name the monitored brand.
 3. Each prompt is sent to Perplexity Sonar to simulate a web-grounded AI search response with citations.
 4. Each Perplexity response is analyzed by OpenAI into structured GEO signals.
 5. Pure scoring functions calculate a transparent GEO Visibility Score out of 100.
@@ -23,11 +23,12 @@ Above the fold, show the actual product surface:
 1. Header label: `Generative Search Visibility Intelligence`.
 2. Main title: `GEO Visibility Scanner`.
 3. Short description: `Enter any brand, run AI-search prompts through Perplexity, analyze responses with OpenAI, and save scan output to Supabase when configured.`
-4. A white scan form card with fields for brand name, website URL, industry, and target market.
-5. An optional target prompts textarea under the required fields.
-6. Primary button: `Run GEO Scan`.
-7. Secondary button: `Load Nuxe sample`.
-8. Empty state below the form: `Results will appear here after a scan.`
+4. A white scan form card with fields for brand name, website URL, industry, target market, and prompt strategy.
+5. A prompt strategy selector: discovery for unnamed category prompts, mixed for category plus direct prompts, or direct for brand-named prompts.
+6. An optional target prompts textarea under the required fields.
+7. Primary button: `Run GEO Scan`.
+8. Secondary button: `Load Nuxe sample`.
+9. Empty state below the form: `Results will appear here after a scan.`
 
 Visual direction:
 
@@ -39,6 +40,17 @@ Visual direction:
 - No hero image, decorative graphics, or vague intro sections.
 
 After a scan, the same first screen should become results-first: show the overall GEO Visibility Score, Mention Rate, Citation Rate, Average Position, then prompt results, competitors, AI response viewer, recommendations, and GEO readiness.
+## Prompt Strategy
+
+The scanner supports prompts that do not directly name the brand. These are the most important GEO tests because they answer: does the brand appear when buyers ask for category recommendations without already knowing the brand?
+
+Strategies:
+
+- `discovery`: default. Generates unnamed category, problem-led, trust, market, and recommendation prompts such as `What are the best face care products for dry sensitive skin?`.
+- `mixed`: combines mostly unnamed discovery prompts with a few direct brand comparison prompts.
+- `direct`: focuses on brand-named prompts such as comparisons, alternatives, and due-diligence questions.
+
+Use discovery mode for questions like: `We do not seem to show up when people ask ChatGPT or Perplexity to recommend face care products. Why, and what can we do about it?`
 ## Local Setup
 
 Install dependencies:
@@ -110,7 +122,8 @@ Input:
   "websiteUrl": "https://www.nuxe.com",
   "industry": "Premium skincare",
   "targetMarket": "France / Europe",
-  "optionalPrompts": "Optional newline-separated prompts"
+  "optionalPrompts": "Optional newline-separated prompts",
+  "promptStrategy": "discovery"
 }
 ```
 
@@ -118,7 +131,7 @@ Process:
 
 1. Validate required fields and URL format.
 2. Check `OPENAI_API_KEY` and `PERPLEXITY_API_KEY`.
-3. Use custom prompts when provided, otherwise call `/api/generate-prompts` logic through OpenAI.
+3. Use custom prompts when provided, otherwise call `/api/generate-prompts` logic through OpenAI using the selected prompt strategy.
 4. For each prompt, call Perplexity Sonar.
 5. Analyze each answer with OpenAI.
 6. Calculate the score with pure functions in `src/lib/scoring.ts`.
@@ -190,5 +203,7 @@ These checks mainly explain recommendations. They are not a full technical audit
 - Add citation quality scoring and source authority checks.
 - Add exports for PDF, CSV, and client-ready reports.
 - Add provider comparisons beyond Perplexity where API access allows.
+
+
 
 

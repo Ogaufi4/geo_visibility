@@ -75,26 +75,48 @@ export const callOpenAI = async (input: string, maxOutputTokens = 700) => {
   return extractOpenAIText(await response.json());
 };
 
-export const generateFallbackPrompts = ({ brandName, industry, targetMarket }: ScanInput) => [
-  `What are the best ${industry} brands for customers in ${targetMarket}?`,
-  `Which ${industry} companies are most trusted in ${targetMarket}?`,
-  `Compare ${brandName} with other ${industry} brands available in ${targetMarket}.`,
-  `What should I know before choosing ${brandName} for ${industry}?`,
-  `Which ${industry} brands have the strongest evidence, reviews, or expert recommendations?`,
-  `What are alternatives to ${brandName} in ${targetMarket}?`,
-];
+export const generateFallbackPrompts = ({ brandName, industry, targetMarket, promptStrategy }: ScanInput) => {
+  const discoveryPrompts = [
+    `What are the best ${industry} products or brands for customers in ${targetMarket}?`,
+    `Which ${industry} options are most recommended in ${targetMarket}?`,
+    `What should I buy if I want high-quality ${industry} products?`,
+    `Which ${industry} brands are most trusted by experts or reviewers?`,
+    `What are the best alternatives in ${industry} for people comparing premium options?`,
+    `Which ${industry} products are worth considering for first-time buyers?`,
+  ];
+  const directPrompts = [
+    `Compare ${brandName} with other ${industry} brands available in ${targetMarket}.`,
+    `What should I know before choosing ${brandName} for ${industry}?`,
+    `What are alternatives to ${brandName} in ${targetMarket}?`,
+  ];
+
+  if (promptStrategy === "direct") {
+    return directPrompts;
+  }
+
+  if (promptStrategy === "mixed") {
+    return [...discoveryPrompts.slice(0, 4), ...directPrompts];
+  }
+
+  return discoveryPrompts;
+};
 
 export const generatePrompts = async (input: ScanInput) => {
+  const strategy = input.promptStrategy ?? "discovery";
   const prompt = [
     "Generate 6 to 10 realistic generative-search prompts for GEO visibility monitoring.",
-    `Brand: ${input.brandName}`,
+    `Brand being monitored: ${input.brandName}`,
     `Website: ${input.websiteUrl}`,
-    `Industry: ${input.industry}`,
+    `Industry/category: ${input.industry}`,
     `Target market: ${input.targetMarket}`,
-    "Return strict JSON as an array of strings only. Include discovery, comparison, trust, alternative, and recommendation style prompts. Do not hardcode one brand category.",
+    `Prompt strategy: ${strategy}`,
+    "If strategy is discovery, most or all prompts must NOT mention the monitored brand by name. They should test whether the brand appears when buyers ask generic category, problem-led, trust, recommendation, or market questions.",
+    "If strategy is mixed, include mostly unnamed category/discovery prompts and a few direct brand/comparison prompts.",
+    "If strategy is direct, include direct brand, comparison, and alternative prompts.",
+    "Return strict JSON as an array of strings only. Do not hardcode one brand category. Avoid forcing the brand into discovery prompts.",
   ].join("\n");
 
-  const content = await callOpenAI(prompt, 500);
+  const content = await callOpenAI(prompt, 700);
   const parsed = parseJsonArray<string>(content);
 
   if (!parsed || parsed.length === 0) {
@@ -300,3 +322,4 @@ export const generateRecommendations = async (params: {
     return fallback;
   }
 };
+

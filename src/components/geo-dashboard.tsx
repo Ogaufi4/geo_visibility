@@ -9,6 +9,7 @@ const emptyForm: Required<ScanInput> = {
   industry: "",
   targetMarket: "",
   optionalPrompts: "",
+  promptStrategy: "discovery",
 };
 
 const sampleForm: Required<ScanInput> = {
@@ -16,10 +17,11 @@ const sampleForm: Required<ScanInput> = {
   websiteUrl: "https://www.nuxe.com",
   industry: "Premium skincare",
   targetMarket: "France / Europe",
+  promptStrategy: "discovery",
   optionalPrompts: [
     "What are the best premium skincare brands in France?",
     "Which skincare brands are most recommended for dry skin in Europe?",
-    "Compare Nuxe with other premium skincare brands.",
+    "What face care products are best for dry sensitive skin?",
   ].join("\n"),
 };
 
@@ -100,7 +102,7 @@ export function GeoDashboard() {
           <p className="kicker">Generative Search Visibility Intelligence</p>
           <h1>GEO Visibility Scanner</h1>
           <p className="subtle">
-            Enter any brand, run AI-search prompts through Perplexity, analyze the responses with OpenAI, and save scan output to Supabase when configured.
+            Enter any brand, run unnamed category prompts or direct prompts through Perplexity, analyze responses with OpenAI, and save scan output to Supabase when configured.
           </p>
         </div>
         {scan ? <Status scan={scan} /> : null}
@@ -124,9 +126,17 @@ export function GeoDashboard() {
             Target market
             <input value={form.targetMarket} onChange={(event) => updateField("targetMarket", event.target.value)} placeholder="France / Europe" required />
           </label>
+          <label>
+            Prompt strategy
+            <select value={form.promptStrategy} onChange={(event) => updateField("promptStrategy", event.target.value)}>
+              <option value="discovery">Discovery: unnamed category prompts</option>
+              <option value="mixed">Mixed: category plus direct prompts</option>
+              <option value="direct">Direct: brand named prompts</option>
+            </select>
+          </label>
           <label className="wide">
             Optional target prompts
-            <textarea value={form.optionalPrompts} onChange={(event) => updateField("optionalPrompts", event.target.value)} placeholder="One prompt per line. Leave empty to generate prompts with OpenAI." />
+            <textarea value={form.optionalPrompts} onChange={(event) => updateField("optionalPrompts", event.target.value)} placeholder="One prompt per line. Leave empty to generate prompts with OpenAI. Discovery mode tests questions where the brand is not named." />
           </label>
           <div className="actions">
             <button className="primary" type="submit" disabled={isLoading}>

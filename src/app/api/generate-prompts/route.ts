@@ -12,7 +12,7 @@ const validateInput = (body: Partial<ScanInput>) => {
     return null;
   }
 
-  return { brandName, websiteUrl, industry, targetMarket, optionalPrompts: body.optionalPrompts?.trim() ?? "" };
+  return { brandName, websiteUrl, industry, targetMarket, optionalPrompts: body.optionalPrompts?.trim() ?? "", promptStrategy: body.promptStrategy ?? "discovery" };
 };
 
 export async function POST(request: Request) {
@@ -35,3 +35,4 @@ export async function POST(request: Request) {
   const prompts = await generatePrompts(input);
   return NextResponse.json({ prompts });
 }
+
