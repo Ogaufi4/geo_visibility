@@ -254,11 +254,27 @@ function MetricCard({ label, value, weight }: { label: string; value: number; we
   );
 }
 
+function MarkdownText({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
+        }
+
+        return <span key={`${part}-${index}`}>{part}</span>;
+      })}
+    </>
+  );
+}
+
 function ResponseViewer({ result }: { result: PromptScanResult }) {
   return (
     <div>
       <p><strong>Prompt:</strong> {result.prompt}</p>
-      <div className="answer">{result.answer || "No answer text returned."}</div>
+      <div className="answer"><MarkdownText text={result.answer || "No answer text returned."} /></div>
       <p><strong>Analysis:</strong> {result.analysis.explanation}</p>
       <p><strong>Citations</strong></p>
       <div className="citations">
@@ -279,3 +295,4 @@ function Status({ scan }: { scan: GeoScanResult }) {
 
   return <span className="badge warn">Not saved to Supabase</span>;
 }
+
