@@ -14,6 +14,31 @@ This is not "SEO for AI". It is a lightweight visibility intelligence tool for g
 6. The UI shows score cards, competitors, citations, prompt results, an answer viewer, readiness signals, and recommendations.
 7. If Supabase is configured, the full scan JSON is saved to the `geo_scans` table.
 
+## First Screen UX
+
+The first screen should feel like a working scanner, not a landing page. Users should immediately understand: enter a brand and run a scan.
+
+Above the fold, show the actual product surface:
+
+1. Header label: `Generative Search Visibility Intelligence`.
+2. Main title: `GEO Visibility Scanner`.
+3. Short description: `Enter any brand, run AI-search prompts through Perplexity, analyze responses with OpenAI, and save scan output to Supabase when configured.`
+4. A white scan form card with fields for brand name, website URL, industry, and target market.
+5. An optional target prompts textarea under the required fields.
+6. Primary button: `Run GEO Scan`.
+7. Secondary button: `Load Nuxe sample`.
+8. Empty state below the form: `Results will appear here after a scan.`
+
+Visual direction:
+
+- Light grey app background.
+- White cards with subtle borders.
+- Teal primary action color.
+- Dark slate text with restrained secondary text.
+- Dashboard-tool feel, not marketing-site composition.
+- No hero image, decorative graphics, or vague intro sections.
+
+After a scan, the same first screen should become results-first: show the overall GEO Visibility Score, Mention Rate, Citation Rate, Average Position, then prompt results, competitors, AI response viewer, recommendations, and GEO readiness.
 ## Local Setup
 
 Install dependencies:
@@ -39,7 +64,8 @@ Optional Supabase persistence:
 
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key`n# Also accepted by the app: SUPABASE_SECRET_KEY or SUPABASE_SERVICE_KEY
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+# Also accepted by the app: SUPABASE_SECRET_KEY or SUPABASE_SERVICE_KEY
 ```
 
 Run locally:
@@ -164,4 +190,5 @@ These checks mainly explain recommendations. They are not a full technical audit
 - Add citation quality scoring and source authority checks.
 - Add exports for PDF, CSV, and client-ready reports.
 - Add provider comparisons beyond Perplexity where API access allows.
+
 
