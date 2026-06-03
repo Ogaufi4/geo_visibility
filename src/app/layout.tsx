@@ -1,22 +1,9 @@
 import type { Metadata } from "next";
-import { Sora, Work_Sans } from "next/font/google";
 import "./globals.css";
 
-const sora = Sora({
-  variable: "--font-sora",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const workSans = Work_Sans({
-  variable: "--font-work-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
 export const metadata: Metadata = {
-  title: "GEO Visibility Dashboard",
-  description: "Compact GEO visibility tracking dashboard",
+  title: "GEO Visibility Scanner",
+  description: "Generative search visibility intelligence scanner",
 };
 
 export default function RootLayout({
@@ -25,10 +12,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${sora.variable} ${workSans.variable} h-full antialiased`}
-    >
+    <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
